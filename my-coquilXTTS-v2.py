@@ -7,13 +7,14 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import torch
 import torchaudio
-import sys
 import numpy as np
+import sys
+import re
 
-model_path="~/workspace/models/coqui/XTTS-v2" # Local model path
+model_path="/Users/st/workspace/models/coqui/XTTS-v2" # Local model path
 speaker_wav=model_path + "/samples/samples_en_sample.wav" #default
-n_lines_per_capture = 2  # Adjust this value according to your needs, not ok for big number result a long text
-input="./input-short.txt" # text input file which is need to convert
+num_sentences = 2  # Adjust this value according to your needs, not ok for big number results a too long text
+input="./input-long.txt" # text input file which is need to convert
 outputFile="./speech.wav" # audio speech, result file
 
 def load_text_file(file_path):
@@ -28,27 +29,35 @@ def load_text_file(file_path):
         print(f"An error occurred: {e}")
         return None
 
-def splitFileToStringArray(filename, n_lines_per_capture = 2):
+def capture_sentences(file_path):
     try:
-        with open(filename, 'r') as file_handler:
-            lines = file_handler.readlines()
+        # Initialize an empty list to store the captured sentences
+        sentences = []
 
-            # Ensure each line is stripped of newline characters and other whitespace for clean processing
-            cleaned_lines = [line.strip() for line in lines]
+        # Read the text file line by line
+        with open(file_path, 'r') as file:
+            for line in file:
+                # Use regular expression to split the line into sentences
+                # Missing sentence mark, incorrect split in some cases, eg: 3.29am! -> todo
+                sentence = re.split(r'[.!?]', line)
 
-            # Now create a new array where each nth element (starting from 0) represents an n_lines_per_capture block of consecutive lines from your original file
-            capture_array = np.array([
-                ''.join(cleaned_lines[i:i + n_lines_per_capture])
-                for i in range(0, len(cleaned_lines), n_lines_per_capture)
-            ])
-
-            print("--Capture text Array with size: " + str(len(capture_array)))
-#            print(capture_array)
-            return capture_array
+                # Remove leading/trailing whitespaces and empty strings
+                sentence = [s.strip() for s in sentence if s.strip()]
+                sentences.extend(sentence)
+        return np.array(sentences)
 
     except FileNotFoundError:
-        print(f"File {filename} not found.")
+        print(f"File {file_path} not found.")
         return None
+
+def combined_sentences(sentences, num_sentences = 2):
+    # -> Improve to check max char length and reduce the number of combined sentences
+    separator = '.' # space char: ' '
+    combined_sentence_array = np.array([
+        separator.join(sentences[i:i + num_sentences])
+            for i in range(0, len(sentences), num_sentences)
+        ])
+    return combined_sentence_array
 
 def is_one_dimensional(array):
     """
@@ -64,7 +73,7 @@ def is_one_dimensional(array):
 
 def merge_array(*array):
     """
-    Merges a single-dimensional NumPy array into a combined single-dimensional array.
+    Merges a single-dimensional NumPy array into a single-dimensional array.
 
     Args:
         array (numpy.ndarray): The input single-dimensional NumPy array.
@@ -72,7 +81,6 @@ def merge_array(*array):
     Returns:
         numpy.ndarray: A single-dimensional NumPy array containing the all values.
     """
-    # Use np.cumsum to calculate cumulative sums
     return np.concatenate((array))
 
 config = XttsConfig()
@@ -81,15 +89,17 @@ model = Xtts.init_from_config(config)
 model.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
 #model.cuda()
 
-#sentence1="Does Hezbollah represent Lebanon?"
-#sentence3="Israel has killed the leader of the militant group Hezbollah in a airstrike in Beirut, marking a further escalation of hostilities in the region."
-#sentence="Hello!"
+# Capture sentences from input
+sentenceArray = capture_sentences(input)
+print(f"--Got sentenceArray with size: {len(sentenceArray)}")
+combinedSentenceArray = combined_sentences(sentenceArray, num_sentences)
+print(f"--Got combinedSentenceArray with size: {len(combinedSentenceArray)}")
 
-sentenceArray = splitFileToStringArray(input, n_lines_per_capture)
-print("--Got sentenceArray with size: " + str(len(sentenceArray)))
-
+# Convert sentence to audio
+#sentence="Does Hezbollah represent Lebanon?"
+#sentence="Israel has killed the leader of the militant group Hezbollah in a airstrike in Beirut, marking a further escalation of hostilities in the region."
 def convertSentenceToAudioValue(sentence):
-    # ConvertSentenceToAudioValue
+    # Convert a sentence to audio value
     outputs = model.synthesize(
         sentence,
         config,
@@ -101,14 +111,15 @@ def convertSentenceToAudioValue(sentence):
 
 audio_array_list = []
 count = 0
-for sentence in np.nditer(sentenceArray):
-    print(f"--sentenceArray idx: {count}")
+for sentence in np.nditer(combinedSentenceArray):
+    print(f"--Converting sentenceArray idx: {count}")
     audioArray = convertSentenceToAudioValue(str(sentence))
     if not is_one_dimensional(audioArray):
-        print("The NumPy array is not valid for single-dimensional operations.")
-        print(f"Invalid sentenceArray no: {count}")
+        print(f"Invalid sentenceArray NumPy array, not single-dimensional, array no: {count}")
+        count = count + 1
         continue
     audio_array_list.append((audioArray))
     count = count + 1
-audioArrayCombined = merge_array(*audio_array_list)
-torchaudio.save(outputFile, torch.tensor(audioArrayCombined).unsqueeze(0), 24000)
+
+combinedAudioArray = merge_array(*audio_array_list)
+torchaudio.save(outputFile, torch.tensor(combinedAudioArray).unsqueeze(0), 24000)

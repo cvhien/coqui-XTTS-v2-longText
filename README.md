@@ -10,9 +10,11 @@ My coding is still in newbie.
 
 - Supports long text input from a file. 
 
-There is limitation with high CPU consume, quite slow speed
+There are limitations with high CPU consumption and slow speed,
 
-and with sentence preprocess, model usage. There are warnings about:
+with sentence preprocess (missing end sentence quotations + incorrect split -> incorrect tones), model usage.
+
+There are may warnings about:
 
 "Limitation "XTTS can only generate text with a maximum of 400 tokens."?
 
@@ -48,7 +50,7 @@ model_path="~/workspace/models/coqui/XTTS-v2" # Local model path
 
 speaker_wav=model_path + "/samples/samples_en_sample.wav" #default
 
-n_lines_per_capture = 2  # Adjust this value according to your needs, not ok for big number result a long text
+num_sentences = 2   # Adjust this value according to your needs, not ok for big number results a too long text
 
 input="./input-short.txt" # text input file which is need to convert
 
