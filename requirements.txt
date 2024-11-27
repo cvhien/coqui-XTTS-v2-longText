@@ -1,0 +1,4 @@
+torch
+TTS #(coqui tts)
+nltk
+numpy
