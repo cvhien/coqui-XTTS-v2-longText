@@ -12,17 +12,33 @@ import sys
 import re
 from pathlib import Path
 from textwrap import TextWrapper
+import argparse
 
 import nltk
 nltk.download('punkt')
 nltk.download('punkt_tab')
 from nltk.tokenize import PunktTokenizer
 
-model_path="/Volumes/OTHER/models/coqui/XTTS-v2" # Local model path
-speaker_wav=model_path + "/samples/en_sample.wav" # default speaker
-input="input-long.txt" # text input file which is need to convert
-outputFile="./speech.wav" # audio speech, result file
-maxChar = 300
+model_path_default="/Volumes/OTHER/models/coqui/XTTS-v2" # Local model path
+speaker_wav_default=model_path_default + "/samples/en_sample.wav" # default speaker
+input_default="input-long.txt" # text input file which is need to convert
+outputFile_default="./speech.wav" # audio speech, result file
+maxChar = 250   # max size of chunk, about <=250 to prevent missing audio
+
+# Create an ArgumentParser object
+parser = argparse.ArgumentParser(description="tts script converts textfile by favourite voice and save to output wav file")
+# Define optional parameters with values
+parser.add_argument('-t','--text', type=str, help="The path of the text file to be read.")
+parser.add_argument('-m','--model', type=str, help="The model path used for speak generation.")
+parser.add_argument('-sp','--speaker_file', type=str, help="The path of the speaker file for voice cloning.")
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Access the arguments, using default values if not provided
+param_text = args.text if args.text is not None else input_default
+param_model = args.model if args.model is not None else model_path_default
+param_speaker = args.speaker_file if args.speaker_file is not None else speaker_wav_default
 
 def load_text_file(file_path):
     try:
@@ -96,6 +112,7 @@ def capture_sentences(text, maxChar = 250, file_path = ""):
         for idx in range (0, len(chunks)):
                 writer.write(str(idx) + "\n")
                 writer.write(chunks[idx] + "\n")
+    print(f"--Saved sentence chunk file:{processed_file}---")
 
     return np.array(chunks)
 
@@ -123,23 +140,21 @@ def merge_array(*array):
     """
     return np.concatenate((array))
 
-config = XttsConfig()
-config.load_json(model_path + str("/config.json"))
-model = Xtts.init_from_config(config)
-model.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
-##model.cuda()
-
-# Capture sentences from input
-text = load_text_file(input)
-sentenceArray = capture_sentences(text, maxChar, input)
-print(f"--Got sentenceArray with size: {len(sentenceArray)}")
-
 # Convert sentence to audio
-#sentence="Israel has killed the leader of the militant group Hezbollah in a airstrike in Beirut, marking a further escalation of hostilities in the region."
 def convertSentenceToAudioValue(sentence):
     """
-    Convert a sentence to audio value
+    Convert a sentence to audio array values:
+    sentence="Israel has killed the leader of the militant group Hezbollah in a airstrike in Beirut, marking a further escalation of hostilities in the region."
     """
+    model_path = param_model
+    speaker_wav = param_speaker
+
+    config = XttsConfig()
+    config.load_json(model_path + str("/config.json"))
+    model = Xtts.init_from_config(config)
+    model.load_checkpoint(config, checkpoint_dir=model_path, eval=True)
+    ##model.cuda()
+
     outputs = model.synthesize(
         sentence,
         config,
@@ -149,19 +164,29 @@ def convertSentenceToAudioValue(sentence):
     )
     return outputs["wav"]
 
-audio_array_list = []
-count = 0
-if len(sentenceArray):
-    for sentence in np.nditer(sentenceArray):
-        print(f"--Converting sentenceArray idx: {count}/{len(sentenceArray)}")
-        print(f"--sentence: {sentence}")
-        audioArray = convertSentenceToAudioValue(str(sentence))
-        if not is_one_dimensional(audioArray):
-            print(f"Invalid sentenceArray NumPy array, not single-dimensional, array no: {count}")
+# Generate audio file from sentenceArray
+def generateAudio(sentenceArray, outputFile):
+    print(f"--Converting sentence to audio---")
+    audio_array_list = []
+    count = 0
+    if len(sentenceArray):
+        for sentence in np.nditer(sentenceArray):
+            print(f"--Converting sentenceArray idx: {count}/{len(sentenceArray)}")
+            print(f"--sentence: {sentence}")
+            audioArray = convertSentenceToAudioValue(str(sentence))
+            if not is_one_dimensional(audioArray):
+                print(f"Invalid sentenceArray NumPy array, not single-dimensional, array no: {count}")
+                count = count + 1
+                continue
+            audio_array_list.append((audioArray))
             count = count + 1
-            continue
-        audio_array_list.append((audioArray))
-        count = count + 1
 
-combinedAudioArray = merge_array(*audio_array_list)
-torchaudio.save(outputFile, torch.tensor(combinedAudioArray).unsqueeze(0), 24000)
+    combinedAudioArray = merge_array(*audio_array_list)
+    torchaudio.save(outputFile, torch.tensor(combinedAudioArray).unsqueeze(0), 24000)
+
+if __name__ == "__main__":
+    text_file = param_text
+    text = load_text_file(text_file)
+    sentenceArray = capture_sentences(text, maxChar, text_file)
+    print(f"--Got sentenceArray with size: {len(sentenceArray)}")
+    generateAudio(sentenceArray, outputFile_default)

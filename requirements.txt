@@ -1,4 +1,4 @@
-torch
 TTS #(coqui tts)
+torch
+torchaudio
 nltk
-numpy

@@ -1,28 +1,29 @@
 # coqui-XTTS-v2-longText
 
-This python script to execute the model in case of a long text. 
+Python script to convert long text file to audio wav file, tts, with voice cloning.
 
 Aim to read English articles with a clear voice, high accuracy and good performance.
 
-My coding is still in newbie.
+### Description
 
-### Features
+Supports long text input from a file, uses coqui-ai/TTS coqui/XTTS-v2 model.
+There are limitations with high CPU consumption and quite slow speed.
 
-- Supports long text input from a file. 
-
-There are limitations with high CPU consumption and slow speed,
-
-with sentence preprocess (missing end sentence quotations + incorrect split -> incorrect tones), model usage.
+It splits the text into smaller chunks, creates wav file.
+There may have issues with not yet optimized model usage, spliting text or truncate audio with too long sentence or chunk size,
+current setting is maxChar = 250.
 
 There are may warnings about:
-
+```
 "Limitation "XTTS can only generate text with a maximum of 400 tokens."?
-
 [!] Warning: The text length exceeds the character limit of 250 for language 'en', this might cause truncated audio."
+```
 
 ### Reference 
 
 https://github.com/coqui-ai/TTS/tree/dev#installation
+
+https://github.com/dynamiccreator/voice-text-reader.git voice-text-reader
 
 ## Model
 
@@ -36,25 +37,42 @@ speech-long.wav is for input-short.txt which is gotten some lines from: https://
 
 ### Install
 
-Install TTS with guidance from the original website, 
+Install TTS with guidance from the original website, plus some modules:
+```
+pip install -r requirements.txt
+```
 
 Download huggingface.co/coqui/XTTS-v2 model,
 
-Test is ok with python 3.11.
+Run OK with python 3.11.
 
 ### Usage
 
-Execute: python my-coquilXTTS-v2.py
+Prepared your desired voice on a .wav file, or it will be the default "samples/en_sample.wav" in the model huggingface 
+download folder. I make voice file with similar parameters of file in samples folder.
 
-model_path="~/workspace/models/coqui/XTTS-v2" # Local model path
+```
+python my-coquilXTTS-v2.py
+```
+```
+python my-coquilXTTS-v2.py -m /Volumes/OTHER/models/coqui/XTTS-v2 -t input-short.txt -sp ~/Oprah-Z3AtmPS1Wic.wav
+```
 
-speaker_wav=model_path + "/samples/samples_en_sample.wav" #default
+```
+All options:
+  -h, --help            show this help message and exit
+  -t TEXT, --text TEXT  The path of the text file to be read.
+  -m MODEL, --model MODEL
+                        The model path used for speak generation.
+  -sp SPEAKER_FILE, --speaker_file SPEAKER_FILE
+                        The path of the speaker file for voice cloning.
+```
 
-num_sentences = 2   # Adjust this value according to your needs, not ok for big number results a too long text
-
-input="./input-short.txt" # text input file which is need to convert
-
-outputFile="./speech.wav" # audio speech, result file
+(Use the TTS from cli:
+```
+tts --model_name "tts_models/multilingual/multi-dataset/xtts_v2" --model_path "/Volumes/OTHER/models/coqui/XTTS-v2"  --config_path /Volumes/OTHER/models/coqui/XTTS-v2/config.json --language_idx en --speaker_idx 'Narelle Moon' --text "Cuttle is a web-based 2D parametric computer-aided design CAD tool. It is easy to learn, has a full-featured free tier, and—most importantly—it Just Works. It has a clean and usable interface, several high-quality tutorials for getting started, and a bunch of project templates of varying degrees of complexity, which serve as both a teaching tool" --out_path ./speech.wav
+```
+)
 
 ### Code
 Using the model directly:
@@ -75,9 +93,6 @@ outputs = model.synthesize(
     speaker_wav="/data/TTS-public/_refclips/3.wav",
     gpt_cond_len=3,
     language="en",
-)
 ```
 
 ### License
-
-### Contact
